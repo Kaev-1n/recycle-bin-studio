@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text.Json;
@@ -23,7 +24,9 @@ internal static class UpdateService
     };
 
     public static Version CurrentVersion { get; } = typeof(UpdateService).Assembly.GetName().Version!;
-    public static string VersionLabel => CurrentVersion.ToString(3);
+    public static string VersionLabel => typeof(UpdateService).Assembly
+        .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion.Split('+')[0]
+        ?? CurrentVersion.ToString(3);
 
     public static bool IsInstalled
     {

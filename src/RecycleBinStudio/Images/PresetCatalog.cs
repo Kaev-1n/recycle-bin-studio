@@ -116,14 +116,14 @@ internal sealed class PresetCatalog
     private static PreparedIcon ReadResource(string key, string state)
     {
         string name = $"{key}-{state}.ico";
-        var uri = new Uri($"pack://application:,,,/Assets/Presets/{name}");
+        var uri = new Uri($"pack://application:,,,/RecycleBinStudio;component/Assets/Presets/{name}");
         using var source = Application.GetResourceStream(uri).Stream;
         using var stream = new MemoryStream();
         source.CopyTo(stream);
         return Decode(name, stream.ToArray());
     }
 
-    private static PreparedIcon Decode(string name, byte[] bytes)
+    internal static PreparedIcon Decode(string name, byte[] bytes)
     {
         using var stream = new MemoryStream(bytes, writable: false);
         var decoder = new IconBitmapDecoder(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);

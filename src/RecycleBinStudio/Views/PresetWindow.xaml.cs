@@ -1,44 +1,30 @@
 using System.Diagnostics;
-using System.IO;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Microsoft.Win32;
 using RecycleBinStudio.Images;
-using RecycleBinStudio.Windows;
 
 namespace RecycleBinStudio.Views;
 
 public partial class PresetWindow : Window
 {
     private BitmapSource? sheet;
+    private BitmapSource? previewSheet;
     private BitmapSource? empty;
     private BitmapSource? full;
     private bool swapped;
-    private LocalPreset? saved;
     private bool busy;
+    internal PresetPair? Result { get; private set; }
+    internal string ResultName { get; private set; } = "";
 
     public PresetWindow()
     {
         InitializeComponent();
         PromptTemplates.ItemsSource = PresetPrompt.Templates;
         PromptTemplates.SelectedIndex = 0;
-        UpdateSavedList();
-    }
-
-    private void UpdateSavedList()
-    {
-        try
-        {
-            var presets = LocalPresets.Read();
-            SavedPresets.ItemsSource = presets;
-            SavedPresets.SelectedIndex = 0;
-            SavedSection.Visibility = presets.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        }
-        catch (Exception error) when (error is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
-        {
-            Feedback.Text = $"Не удалось прочитать список пресетов. {error.Message}";
-        }
+        Feedback.Text = "Поддерживаются PNG, JPG и ICO.";
     }
 
     private void CopyPrompt(object sender, RoutedEventArgs e)
@@ -86,13 +72,17 @@ public partial class PresetWindow : Window
 
     private void ImagesDragOver(object sender, DragEventArgs e)
     {
-        e.Effects = !busy && e.Data.GetData(DataFormats.FileDrop) is string[] { Length: 1 or 2 }
-            ? DragDropEffects.Copy : DragDropEffects.None;
+        bool canDrop = !busy && e.Data.GetData(DataFormats.FileDrop) is string[] { Length: 1 or 2 };
+        ImportPanel.BorderBrush = (Brush)FindResource(canDrop ? "Mint" : "Outline");
+        e.Effects = canDrop ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
     }
 
+    private void ImagesDragLeave(object sender, DragEventArgs e) => ImportPanel.ClearValue(Border.BorderBrushProperty);
+
     private async void ImagesDropped(object sender, DragEventArgs e)
     {
+        ImportPanel.ClearValue(Border.BorderBrushProperty);
         e.Handled = true;
         if (!busy && e.Data.GetData(DataFormats.FileDrop) is string[] { Length: 1 or 2 } paths)
             await ImportAsync(paths);
@@ -100,65 +90,79 @@ public partial class PresetWindow : Window
 
     private Task ImportAsync(string[] paths, bool? replaceEmpty = null) => RunAsync(async () =>
     {
-        var frames = await Task.Run(() => paths.Select(PresetImage.Load).ToArray());
+        var input = await Task.Run(() =>
+        {
+            var frames = paths.Select(PresetImage.Load).ToArray();
+            return (Frames: frames, Preview: paths.Length == 1 && replaceEmpty is null
+                ? PresetImage.PreviewSheet(frames[0]) : null);
+        });
+
         if (replaceEmpty is bool isEmpty)
         {
-            sheet = null;
+            (empty, full) = CurrentPair();
             if (isEmpty)
-                empty = frames[0];
+                empty = input.Frames[0];
             else
-                full = frames[0];
+                full = input.Frames[0];
         }
-        else if (frames.Length == 2)
+        else if (input.Frames.Length == 2)
         {
-            sheet = null;
-            (empty, full) = (frames[0], frames[1]);
-        }
-        else
-        {
-            var pair = PresetImage.Split(frames[0], 0.5);
-            sheet = null;
-            SplitPosition.Value = 0.5;
-            sheet = frames[0];
-            swapped = false;
-            (empty, full) = pair;
+            (empty, full) = (input.Frames[0], input.Frames[1]);
         }
 
-        if (saved is not null)
-            PresetName.Clear();
-        saved = null;
-        PresetName.IsReadOnly = false;
-        SplitControls.Visibility = sheet is null ? Visibility.Collapsed : Visibility.Visible;
+        sheet = input.Preview is null ? null : input.Frames[0];
+        previewSheet = null;
+        SplitPosition.Value = 0.5;
+        previewSheet = input.Preview;
+        swapped = false;
+        SourceImage.Source = previewSheet;
+        SplitControls.Visibility = previewSheet is null ? Visibility.Collapsed : Visibility.Visible;
+        UpdateDivider();
         RenderPreviews();
     });
 
     private void SplitChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        if (sheet is null)
+        if (previewSheet is null)
             return;
-        SplitSheet();
+
+        UpdateDivider();
         RenderPreviews();
     }
 
-    private void SplitSheet()
+    private void UpdateDivider(object sender, SizeChangedEventArgs e) => UpdateDivider();
+
+    private void UpdateDivider()
     {
-        var (left, right) = PresetImage.Split(sheet!, SplitPosition.Value);
-        (empty, full) = swapped ? (right, left) : (left, right);
+        if (previewSheet is not null)
+            Canvas.SetLeft(Divider, SourcePreview.ActualWidth * SplitPosition.Value);
+    }
+
+    private (BitmapSource? Empty, BitmapSource? Full) CurrentPair() =>
+        sheet is null ? (empty, full) : SplitPair(sheet);
+
+    private (BitmapSource Left, BitmapSource Right) SplitPair(BitmapSource source)
+    {
+        var (left, right) = PresetImage.Split(source, SplitPosition.Value);
+        return swapped ? (right, left) : (left, right);
     }
 
     private void Swap(object sender, RoutedEventArgs e)
     {
-        swapped = !swapped;
-        (empty, full) = (full, empty);
+        if (sheet is null)
+            (empty, full) = (full, empty);
+        else
+            swapped = !swapped;
         RenderPreviews();
     }
 
     private void RenderPreviews()
     {
-        EmptyLarge.Source = Preview(empty, 64);
-        EmptySmall.Source = Preview(empty, 32);
-        FullLarge.Source = Preview(full, 64);
-        FullSmall.Source = Preview(full, 32);
+        (BitmapSource? first, BitmapSource? second) = previewSheet is null ? (empty, full) : SplitPair(previewSheet);
+        EmptyLarge.Source = Preview(first, 56);
+        EmptySmall.Source = Preview(first, 32);
+        FullLarge.Source = Preview(second, 56);
+        FullSmall.Source = Preview(second, 32);
         UpdateButtons();
 
         static BitmapSource? Preview(BitmapSource? source, int size) =>
@@ -172,68 +176,42 @@ public partial class PresetWindow : Window
         if (PresetName is null)
             return;
 
-        bool hasPair = empty is not null && full is not null;
-        ApplyPresetButton.Content = saved is null ? "Сохранить и применить" : "Применить";
-        ApplyPresetButton.IsEnabled = !busy && hasPair && !string.IsNullOrWhiteSpace(PresetName.Text);
-        SwapButton.IsEnabled = !busy && hasPair && saved is null;
+        bool hasPair = sheet is not null || (empty is not null && full is not null);
+        SaveControls.Visibility = hasPair ? Visibility.Visible : Visibility.Collapsed;
+        SavePresetButton.IsEnabled = !busy && hasPair && !string.IsNullOrWhiteSpace(PresetName.Text);
+        SwapButton.Visibility = hasPair ? Visibility.Visible : Visibility.Hidden;
     }
 
-    private async void LoadSaved(object sender, RoutedEventArgs e)
+    private async void Save(object sender, RoutedEventArgs e)
     {
-        if (SavedPresets.SelectedItem is not LocalPreset preset)
-            return;
-
-        await RunAsync(async () =>
-        {
-            (empty, full) = await Task.Run(() => (PresetImage.Load(preset.EmptyPath), PresetImage.Load(preset.FullPath)));
-            sheet = null;
-            SplitControls.Visibility = Visibility.Collapsed;
-            saved = preset;
-            PresetName.Text = preset.Name;
-            PresetName.IsReadOnly = true;
-            RenderPreviews();
-        });
-    }
-
-    private async void Apply(object sender, RoutedEventArgs e)
-    {
-        if (empty is not { } first || full is not { } second)
+        if (CurrentPair() is not ({ } first, { } second))
             return;
 
         string name = PresetName.Text.Trim();
-        bool applied = await RunAsync(async () =>
+        if (await RunAsync(async () =>
         {
-            if (saved is null)
+            Result = await Task.Run(() =>
             {
-                saved = await Task.Run(() =>
-                    LocalPresets.Save(name, IconFile.Encode(first, "empty"), IconFile.Encode(second, "full")));
-                PresetName.IsReadOnly = true;
-                UpdateSavedList();
-            }
-
-            var preset = saved;
-            try
-            {
-                await Task.Run(() => RecycleBinShell.Apply(preset.EmptyPath, preset.FullPath));
-            }
-            catch (Exception error)
-            {
-                throw new IOException($"Пресет сохранён. Не удалось применить иконки в Windows. {error.Message}", error);
-            }
-        });
-
-        if (applied)
+                var pair = new PresetPair(IconFile.Encode(first, "Пустая"), IconFile.Encode(second, "Полная"));
+                LocalPresets.Save(name, pair.Empty, pair.Full);
+                return pair;
+            });
+            ResultName = name;
+        }, "Сохраняем тему…"))
+        {
             DialogResult = true;
+        }
     }
 
-    private async Task<bool> RunAsync(Func<Task> action)
+    private async Task<bool> RunAsync(Func<Task> action, string progress = "Подготавливаем превью…")
     {
         if (busy)
             return false;
 
         busy = true;
         Form.IsEnabled = false;
-        Feedback.Text = "Обрабатываем…";
+        SaveControls.IsEnabled = false;
+        Feedback.Text = progress;
         try
         {
             await action();
@@ -249,6 +227,7 @@ public partial class PresetWindow : Window
         {
             busy = false;
             Form.IsEnabled = true;
+            SaveControls.IsEnabled = true;
             UpdateButtons();
         }
     }

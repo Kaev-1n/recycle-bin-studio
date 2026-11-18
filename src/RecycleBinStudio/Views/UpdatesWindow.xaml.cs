@@ -21,9 +21,10 @@ public partial class UpdatesWindow : Window
         Automatic.IsChecked = installed && UpdateService.Automatic;
         Automatic.Checked += ToggleAutomatic;
         Automatic.Unchecked += ToggleAutomatic;
+        Status.Text = "Проверьте, есть ли новая версия.";
         Details.Text = installed
-            ? "Новая стабильная версия установится при запуске. Приложение откроется снова."
-            : "В этой копии доступна проверка. Для установки обновления откройте релиз на GitHub.";
+            ? "После установки приложение откроется снова."
+            : "Эта копия запускается без установки. Новые версии доступны на GitHub.";
     }
 
     private void ToggleAutomatic(object sender, RoutedEventArgs e)
@@ -51,6 +52,9 @@ public partial class UpdatesWindow : Window
             if (update is not null && installed)
             {
                 InstallButton.Visibility = canRestart ? Visibility.Visible : Visibility.Collapsed;
+                CheckButton.Visibility = canRestart ? Visibility.Collapsed : Visibility.Visible;
+                if (canRestart)
+                    InstallButton.Focus();
                 if (!canRestart)
                     Status.Text += " Примените или отмените черновики иконок перед установкой.";
             }

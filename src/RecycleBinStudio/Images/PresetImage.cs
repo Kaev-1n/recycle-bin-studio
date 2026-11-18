@@ -1,5 +1,6 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Media;
 using System.Windows.Media.Imaging;
 
 namespace RecycleBinStudio.Images;
@@ -33,5 +34,23 @@ internal static class PresetImage
         left.Freeze();
         right.Freeze();
         return (left, right);
+    }
+
+    public static BitmapSource PreviewSheet(BitmapSource source)
+    {
+        if (source.PixelWidth < 2)
+            throw new InvalidDataException("Изображение слишком узкое для разделения.");
+
+        const int maxPreviewSize = 768;
+        int longestSide = Math.Max(source.PixelWidth, source.PixelHeight);
+        if (longestSide <= maxPreviewSize)
+            return source;
+
+        double scale = (double)maxPreviewSize / longestSide;
+        var reduced = new TransformedBitmap(source, new ScaleTransform(
+            Math.Max(scale, 2.0 / source.PixelWidth), Math.Max(scale, 1.0 / source.PixelHeight)));
+        var preview = new WriteableBitmap(reduced);
+        preview.Freeze();
+        return preview;
     }
 }

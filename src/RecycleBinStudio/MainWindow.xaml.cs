@@ -1,6 +1,10 @@
 using System.IO;
 using System.Runtime.InteropServices;
 using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Data;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
 using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
@@ -18,7 +22,7 @@ public partial class MainWindow : Window
     private readonly PresetCatalog catalog = new();
     private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(1) };
     private bool busy;
-    private bool refreshing;
+    private Task refresh = Task.CompletedTask;
     private BinIcons? systemIcons;
     private BitmapSource? emptyPreview;
     private BitmapSource? fullPreview;
@@ -28,6 +32,8 @@ public partial class MainWindow : Window
         InitializeComponent();
         EmptyCard.Content = empty;
         FullCard.Content = full;
+        UpdateActions();
+        Feedback.Text = DefaultHint;
         timer.Tick += async (_, _) => await RefreshAsync();
         Loaded += async (_, _) =>
         {
@@ -39,12 +45,11 @@ public partial class MainWindow : Window
         Closed += (_, _) => timer.Stop();
     }
 
-    private async Task RefreshAsync()
-    {
-        if (refreshing || busy)
-            return;
+    private Task RefreshAsync() =>
+        !busy && refresh.IsCompleted ? refresh = ReadSnapshotAsync() : refresh;
 
-        refreshing = true;
+    private async Task ReadSnapshotAsync()
+    {
         try
         {
             var previous = systemIcons;
@@ -62,8 +67,8 @@ public partial class MainWindow : Window
             systemIcons = snapshot.icons;
             emptyPreview = snapshot.currentEmpty;
             fullPreview = snapshot.currentFull;
-            empty.UpdateSystem(systemIcons.Empty, emptyPreview, snapshot.count == 0);
-            full.UpdateSystem(systemIcons.Full, fullPreview, snapshot.count > 0);
+            empty.UpdateSystem(emptyPreview, snapshot.count == 0);
+            full.UpdateSystem(fullPreview, snapshot.count > 0);
             BinStatus.Text = snapshot.count switch
             {
                 null => "Состояние корзины недоступно",
@@ -76,12 +81,8 @@ public partial class MainWindow : Window
             System.Security.SecurityException or ExternalException or ArgumentException)
         {
             BinStatus.Text = "Не удалось прочитать состояние корзины";
-            empty.UpdateSystem(null, null, false);
-            full.UpdateSystem(null, null, false);
-        }
-        finally
-        {
-            refreshing = false;
+            empty.UpdateSystem(null, false);
+            full.UpdateSystem(null, false);
         }
     }
 
@@ -93,15 +94,31 @@ public partial class MainWindow : Window
             await ImportAsync(card, dialog.FileName);
     }
 
+    private void PreviewUpdated(object sender, DataTransferEventArgs e)
+    {
+        if (sender is Image { IsLoaded: true, Source: not null } image && SystemParameters.ClientAreaAnimation)
+            image.BeginAnimation(OpacityProperty, new DoubleAnimation(0.72, 1, TimeSpan.FromMilliseconds(120))
+            {
+                FillBehavior = FillBehavior.Stop
+            });
+    }
+
     private void CardDragOver(object sender, DragEventArgs e)
     {
-        e.Effects = !busy && e.Data.GetData(DataFormats.FileDrop) is string[] { Length: 1 }
-            ? DragDropEffects.Copy : DragDropEffects.None;
+        bool canDrop = !busy && e.Data.GetData(DataFormats.FileDrop) is string[] { Length: 1 };
+        var target = (Border)sender;
+        target.BorderBrush = (Brush)FindResource(canDrop ? "Mint" : "Outline");
+        e.Effects = canDrop ? DragDropEffects.Copy : DragDropEffects.None;
         e.Handled = true;
     }
 
+    private static void ClearDropHighlight(object sender) => ((Border)sender).ClearValue(Border.BorderBrushProperty);
+
+    private void CardDragLeave(object sender, DragEventArgs e) => ClearDropHighlight(sender);
+
     private async void CardDrop(object sender, DragEventArgs e)
     {
+        ClearDropHighlight(sender);
         e.Handled = true;
         if (!busy && e.Data.GetData(DataFormats.FileDrop) is string[] { Length: 1 } files)
             await ImportAsync((IconCard)((FrameworkElement)sender).DataContext, files[0]);
@@ -116,22 +133,23 @@ public partial class MainWindow : Window
     private void DiscardIcon(object sender, RoutedEventArgs e)
     {
         ((IconCard)((FrameworkElement)sender).DataContext).SetDraft(null);
-        Feedback.Text = "";
         UpdateActions();
+        Feedback.Text = HasDraft ? "Изменения ещё не применены." : DefaultHint;
+        if (!HasDraft)
+            ChooseThemeButton.Focus();
     }
 
-    private async void OpenCatalog(object sender, RoutedEventArgs e)
+    private void OpenCatalog(object sender, RoutedEventArgs e)
     {
         var window = new CatalogWindow(catalog) { Owner = this };
-        if (window.ShowDialog() != true || window.SelectedPreset is not { Pair: { } pair } preset)
-            return;
+        if (window.ShowDialog() == true && window.SelectedPreset is { Pair: { } pair } preset)
+            StagePair(pair, preset.Name);
+    }
 
-        await RunAsync("Применяем пресет…", async () =>
-        {
-            await Task.Run(() => RecycleBinShell.Apply(pair.Empty.Save(), pair.Full.Save()));
-            ClearDrafts();
-            return $"Пресет «{preset.Name}» применён.";
-        });
+    private void OpenMenu(object sender, RoutedEventArgs e)
+    {
+        MoreButton.ContextMenu.PlacementTarget = MoreButton;
+        MoreButton.ContextMenu.IsOpen = true;
     }
 
     private void OpenUpdates(object sender, RoutedEventArgs e)
@@ -175,40 +193,52 @@ public partial class MainWindow : Window
     private bool CanInstallAutomatically() => IsVisible && !busy && !empty.HasDraft && !full.HasDraft &&
         !OwnedWindows.Cast<Window>().Any(window => window.IsVisible) && UpdateService.Automatic;
 
-    private async void OpenPresetStudio(object sender, RoutedEventArgs e)
+    private void OpenPresetStudio(object sender, RoutedEventArgs e)
     {
         var window = new PresetWindow { Owner = this };
-        if (window.ShowDialog() != true)
-            return;
+        if (window.ShowDialog() == true && window.Result is { } pair)
+            StagePair(pair, window.ResultName);
+    }
 
-        ClearDrafts();
+    private void StagePair(PresetPair pair, string name)
+    {
+        empty.SetDraft(pair.Empty with { Name = name });
+        full.SetDraft(pair.Full with { Name = name });
+        Feedback.Text = $"Тема «{name}» готова к применению.";
         UpdateActions();
-        Feedback.Text = "Пресет применён.";
-        await RefreshAsync();
+        ApplyButton.Focus();
     }
 
     private async void ApplyIcons(object sender, RoutedEventArgs e)
     {
+        if (!HasDraft)
+            return;
         var emptyDraft = empty.Draft;
         var fullDraft = full.Draft;
 
         await RunAsync("Применяем иконки…", async () =>
         {
             await Task.Run(() => RecycleBinShell.Apply(emptyDraft?.Save(), fullDraft?.Save()));
+            await RefreshAfterWriteAsync();
             ClearDrafts();
-            return "Иконки применены.";
+            return "Значки корзины обновлены.";
         });
+        (HasDraft ? ApplyButton : ChooseThemeButton).Focus();
     }
 
     private async void RestoreDefaults(object sender, RoutedEventArgs e)
     {
-        if (MessageBox.Show(this, "Вернуть стандартные значки Windows для обоих состояний?", Title,
+        string message = "Вернуть стандартные значки Windows для пустой и полной корзины?";
+        if (HasDraft)
+            message += "\n\nТекущие правки будут сброшены.";
+        if (MessageBox.Show(this, message, "Стандартные значки",
                 MessageBoxButton.OKCancel, MessageBoxImage.Question) != MessageBoxResult.OK)
             return;
 
         await RunAsync("Восстанавливаем значки Windows…", async () =>
         {
             await Task.Run(RecycleBinShell.RestoreDefaults);
+            await RefreshAfterWriteAsync();
             ClearDrafts();
             return "Стандартные значки Windows восстановлены.";
         });
@@ -218,6 +248,12 @@ public partial class MainWindow : Window
     {
         empty.SetDraft(null);
         full.SetDraft(null);
+    }
+
+    private async Task RefreshAfterWriteAsync()
+    {
+        await refresh;
+        await (refresh = ReadSnapshotAsync());
     }
 
     private async Task RunAsync(string working, Func<Task<string>> action)
@@ -242,14 +278,23 @@ public partial class MainWindow : Window
             busy = false;
             UpdateActions();
         }
-
-        await RefreshAsync();
     }
+
+    private const string DefaultHint = "Перетащите ICO, PNG или JPG на нужное превью.";
+    private bool HasDraft => empty.HasDraft || full.HasDraft;
 
     private void UpdateActions()
     {
         Cards.IsEnabled = !busy;
         Actions.IsEnabled = !busy;
-        ApplyButton.IsEnabled = empty.HasDraft || full.HasDraft;
+        MoreButton.IsEnabled = !busy;
+        ChooseThemeButton.Visibility = HasDraft ? Visibility.Collapsed : Visibility.Visible;
+        BrowseThemesButton.Visibility = ApplyButton.Visibility = HasDraft ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    protected override void OnClosing(System.ComponentModel.CancelEventArgs e)
+    {
+        e.Cancel = busy;
+        base.OnClosing(e);
     }
 }
