@@ -1,27 +1,35 @@
-# Recycle Bin Studio
+<p align="center">
+  <img src="docs/images/app-icon.png" width="82" height="82" alt="">
+</p>
 
-A Windows desktop app for customizing the empty and full Recycle Bin icons independently.
+<h1 align="center">Recycle Bin Studio</h1>
 
-**[Download the latest release](https://github.com/Kaev-1n/recycle-bin-studio/releases/latest)** · Russian interface
+<p align="center">Редактор иконок пустой и полной корзины Windows</p>
 
-1. Extract the ZIP for your PC (x64 or ARM64) and open `RecycleBinStudio.exe`.
-2. Drop an ICO, PNG, or JPG onto either card, select a file, or load the Pop Cat preset.
-3. Preview both icons and click **Применить**. Use **Значки Windows** to restore the built-in icons.
+<p align="center">
+  <img src="https://img.shields.io/badge/Windows-10%20%7C%2011-0078D4" alt="Windows 10 и 11">
+  <a href="https://github.com/Kaev-1n/recycle-bin-studio/releases/latest"><img src="https://img.shields.io/github/v/release/Kaev-1n/recycle-bin-studio?label=%D0%A1%D0%BA%D0%B0%D1%87%D0%B0%D1%82%D1%8C&amp;color=8EE0BD" alt="Скачать последний релиз"></a>
+  <img src="https://img.shields.io/badge/%D0%98%D0%BD%D1%82%D0%B5%D1%80%D1%84%D0%B5%D0%B9%D1%81-%D0%A0%D1%83%D1%81%D1%81%D0%BA%D0%B8%D0%B9-766CCA" alt="Русский интерфейс">
+</p>
 
-The app reads both configured icons and the current item count from Windows once per second while the window is open. It converts imports into transparent, multi-size ICO files (16–256 px), keeping the original aspect ratio and matching existing ICO frames where available.
+<p align="center">
+  <img src="docs/images/main-window.png" width="900" alt="Главное окно Recycle Bin Studio с превью пустой и полной корзины Pop Cat">
+  <br>
+  <sub>Главный экран версии в разработке</sub>
+</p>
 
-Settings apply to the current Windows user and persist after closing the app. No administrator rights or separate .NET installation are required. If Explorer still shows an old desktop icon, click the desktop and press **F5**. Installed icons are stored in `%LOCALAPPDATA%\RecycleBinStudio\Icons`.
+## Как пользоваться
 
-## Build
+1. Скачайте [релиз для x64 или ARM64](https://github.com/Kaev-1n/recycle-bin-studio/releases/latest), распакуйте ZIP и запустите `RecycleBinStudio.exe`.
+2. Перетащите ICO, PNG или JPG на нужную карточку. Кнопка «Загрузить Pop Cat» подставит готовую пару.
+3. Проверьте превью и нажмите «Применить». Кнопка «Значки Windows» вернёт стандартные иконки.
 
-Use the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0) on Windows. See [supported Windows versions](https://learn.microsoft.com/en-us/dotnet/core/install/windows#supported-versions).
+Приложение обновляет счётчик корзины и показывает активное состояние. Импорт сохраняет пропорции и собирает ICO в размерах от 16 до 256 пикселей.
+
+## Сборка
 
 ```powershell
 dotnet run --project src/RecycleBinStudio
 ```
 
-The WPF window handles the two editable previews. `Images/` decodes sources, prepares ICO files and loads the preset. `Windows/` reads the current configuration, applies per-user settings and notifies Explorer.
-
-## License
-
-The application code is [MIT licensed](LICENSE). The Pop Cat preset is downloaded on request from [sdushantha/recycle-bin-themes](https://github.com/sdushantha/recycle-bin-themes/tree/main/themes/pop-cat). The preset artwork is hosted by the upstream project.
+C# · WPF · .NET 10 · [MIT](LICENSE) · [Источник Pop Cat](https://github.com/sdushantha/recycle-bin-themes/tree/main/themes/pop-cat)
