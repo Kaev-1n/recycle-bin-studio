@@ -15,6 +15,7 @@ public partial class MainWindow : Window
 {
     private readonly IconCard empty = new("Пустая");
     private readonly IconCard full = new("Полная");
+    private readonly PresetCatalog catalog = new();
     private readonly DispatcherTimer timer = new() { Interval = TimeSpan.FromSeconds(1) };
     private bool busy;
     private bool refreshing;
@@ -31,6 +32,7 @@ public partial class MainWindow : Window
         Loaded += async (_, _) =>
         {
             timer.Start();
+            _ = catalog.LoadAsync();
             await RefreshAsync();
             await CheckAutomaticUpdateAsync();
         };
@@ -120,13 +122,13 @@ public partial class MainWindow : Window
 
     private async void OpenCatalog(object sender, RoutedEventArgs e)
     {
-        var window = new CatalogWindow { Owner = this };
-        if (window.ShowDialog() != true || window.SelectedPreset is not { } preset)
+        var window = new CatalogWindow(catalog) { Owner = this };
+        if (window.ShowDialog() != true || window.SelectedPreset is not { Pair: { } pair } preset)
             return;
 
         await RunAsync("Применяем пресет…", async () =>
         {
-            await Task.Run(() => RecycleBinShell.Apply(preset.Empty.Save(), preset.Full.Save()));
+            await Task.Run(() => RecycleBinShell.Apply(pair.Empty.Save(), pair.Full.Save()));
             ClearDrafts();
             return $"Пресет «{preset.Name}» применён.";
         });

@@ -4,9 +4,13 @@
         Title="Каталог пресетов" Icon="../Assets/AppIcon.ico" Width="680" Height="520"
         MinWidth="510" MinHeight="400" WindowStartupLocation="CenterOwner" ShowInTaskbar="False"
         Background="#10161B" Foreground="#F1F5F3" FontFamily="Segoe UI" FontSize="14">
-    <ScrollViewer VerticalScrollBarVisibility="Auto">
-        <StackPanel Margin="24">
-            <TextBlock Text="Каталог пресетов" FontWeight="SemiBold" FontSize="26" Margin="0,0,0,14"/>
+    <DockPanel Margin="24">
+        <DockPanel DockPanel.Dock="Top" Margin="0,0,0,14">
+            <Button x:Name="RetryButton" DockPanel.Dock="Right" Content="Повторить загрузку"
+                    Click="Retry" Visibility="Collapsed"/>
+            <TextBlock Text="Каталог пресетов" FontWeight="SemiBold" FontSize="26"/>
+        </DockPanel>
+        <ScrollViewer VerticalScrollBarVisibility="Auto">
             <ItemsControl x:Name="Presets">
                 <ItemsControl.ItemTemplate>
                     <DataTemplate>
@@ -21,15 +25,37 @@
                                     <TextBlock Text="{Binding Name}" FontSize="18" FontWeight="SemiBold"/>
                                     <TextBlock Text="{Binding Description}" Foreground="#A6B5BA" TextWrapping="Wrap" Margin="0,3,0,9"/>
                                     <Button Content="Применить" Click="SelectPreset" HorizontalAlignment="Left"
-                                            AutomationProperties.Name="{Binding Name, StringFormat='Применить · {0}'}"/>
+                                            AutomationProperties.Name="{Binding Name, StringFormat='Применить · {0}'}">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Setter Property="Visibility" Value="Collapsed"/>
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsReady}" Value="True">
+                                                        <Setter Property="Visibility" Value="Visible"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <TextBlock Text="{Binding Status}" ToolTip="{Binding Error}" Foreground="#A6B5BA">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding IsReady}" Value="True">
+                                                        <Setter Property="Visibility" Value="Collapsed"/>
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
                                 </StackPanel>
                                 <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                                     <StackPanel Margin="0,0,12,0">
-                                        <Image Source="{Binding Empty.Preview}" Width="62" Height="62" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                        <Image Source="{Binding Pair.Empty.Preview}" Width="62" Height="62" RenderOptions.BitmapScalingMode="HighQuality"/>
                                         <TextBlock Text="Пустая" Foreground="#A6B5BA" HorizontalAlignment="Center"/>
                                     </StackPanel>
                                     <StackPanel>
-                                        <Image Source="{Binding Full.Preview}" Width="62" Height="62" RenderOptions.BitmapScalingMode="HighQuality"/>
+                                        <Image Source="{Binding Pair.Full.Preview}" Width="62" Height="62" RenderOptions.BitmapScalingMode="HighQuality"/>
                                         <TextBlock Text="Полная" Foreground="#A6B5BA" HorizontalAlignment="Center"/>
                                     </StackPanel>
                                 </StackPanel>
@@ -38,6 +64,6 @@
                     </DataTemplate>
                 </ItemsControl.ItemTemplate>
             </ItemsControl>
-        </StackPanel>
-    </ScrollViewer>
+        </ScrollViewer>
+    </DockPanel>
 </Window>

@@ -14,6 +14,8 @@ Settings apply to the current Windows user and persist after closing the app. No
 
 **AI presets** include two copyable prompts with a shared two-panel layout. Import a single image, adjust the split or swap both sides, and save the pair. You can also import two separate files. Saved presets stay in your local profile when the app is updated or uninstalled.
 
+The preset catalog includes Portrait Bin and Pop Cat. Six additional themes download from a pinned upstream revision on first launch and are then available offline.
+
 **Updates** checks the latest stable GitHub release. Installed copies can download and install updates from the app, with automatic updates on launch available as an opt-in.
 
 ## Build
