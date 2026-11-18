@@ -47,6 +47,13 @@ internal static class IconFile
 
         var frames = decoder.Frames.OrderByDescending(frame => frame.PixelWidth * (long)frame.PixelHeight)
             .ThenByDescending(frame => frame.Format.BitsPerPixel).ToArray();
+        return Encode(frames, name);
+    }
+
+    public static PreparedIcon Encode(BitmapSource source, string name) => Encode([source], name);
+
+    private static PreparedIcon Encode(BitmapSource[] frames, string name)
+    {
         using var output = new MemoryStream();
         using var writer = new BinaryWriter(output);
         writer.Write((ushort)0);
@@ -90,7 +97,7 @@ internal static class IconFile
         return new(name, preview!, output.ToArray());
     }
 
-    private static BitmapSource Render(BitmapSource source, int size)
+    public static BitmapSource Render(BitmapSource source, int size)
     {
         double scale = Math.Min((double)size / source.PixelWidth, (double)size / source.PixelHeight);
         double width = source.PixelWidth * scale;

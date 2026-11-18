@@ -8,37 +8,6 @@
     <Window.Resources>
         <SolidColorBrush x:Key="Secondary" Color="#A6B5BA"/>
         <SolidColorBrush x:Key="Accent" Color="#8EE0BD"/>
-        <Style TargetType="Button">
-            <Setter Property="Background" Value="#27353D"/>
-            <Setter Property="Foreground" Value="#F1F5F3"/>
-            <Setter Property="BorderBrush" Value="#3A4B53"/>
-            <Setter Property="Padding" Value="14,8"/>
-            <Setter Property="Template">
-                <Setter.Value>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="Chrome" CornerRadius="7" BorderThickness="1"
-                                Background="{TemplateBinding Background}" BorderBrush="{TemplateBinding BorderBrush}"
-                                Padding="{TemplateBinding Padding}">
-                            <ContentPresenter HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="Chrome" Property="BorderBrush" Value="#8EE0BD"/>
-                            </Trigger>
-                            <Trigger Property="IsKeyboardFocused" Value="True">
-                                <Setter TargetName="Chrome" Property="BorderBrush" Value="White"/>
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="Chrome" Property="Opacity" Value="0.76"/>
-                            </Trigger>
-                            <Trigger Property="IsEnabled" Value="False">
-                                <Setter TargetName="Chrome" Property="Opacity" Value="0.40"/>
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Setter.Value>
-            </Setter>
-        </Style>
         <DataTemplate x:Key="CardTemplate">
             <Border Background="#1A242B" BorderBrush="#34454D" BorderThickness="1" CornerRadius="14" Padding="18"
                     AllowDrop="True" DragOver="CardDragOver" Drop="CardDrop">
@@ -97,11 +66,16 @@
             <DockPanel x:Name="Actions" LastChildFill="False">
                 <Button x:Name="ApplyButton" DockPanel.Dock="Right" Content="Применить" Click="ApplyIcons"
                         Background="#8EE0BD" BorderBrush="#8EE0BD" Foreground="#11241D" IsEnabled="False"/>
-                <Button Content="Загрузить Pop Cat" Click="LoadPreset" Margin="0,0,8,0"/>
+                <Button Content="Каталог пресетов" Click="OpenCatalog" Margin="0,0,8,0"/>
+                <Button Content="AI-пресеты" Click="OpenPresetStudio" Margin="0,0,8,0"/>
                 <Button Content="Значки Windows" Click="RestoreDefaults"/>
             </DockPanel>
-            <TextBlock x:Name="Feedback" TextWrapping="Wrap" MinHeight="20" Margin="0,10,0,0"
-                       Foreground="{StaticResource Secondary}" AutomationProperties.LiveSetting="Polite"/>
+            <DockPanel Margin="0,10,0,0">
+                <Button Content="Обновления" Click="OpenUpdates" DockPanel.Dock="Right"
+                        Padding="10,4" Margin="12,0,0,0" VerticalAlignment="Top"/>
+                <TextBlock x:Name="Feedback" TextWrapping="Wrap" MinHeight="20" VerticalAlignment="Center"
+                           Foreground="{StaticResource Secondary}" AutomationProperties.LiveSetting="Polite"/>
+            </DockPanel>
         </StackPanel>
     </ScrollViewer>
 </Window>

@@ -5,6 +5,7 @@ using System.Windows.Media.Imaging;
 using System.Windows.Threading;
 using Microsoft.Win32;
 using RecycleBinStudio.Images;
+using RecycleBinStudio.Updates;
 using RecycleBinStudio.Views;
 using RecycleBinStudio.Windows;
 
@@ -31,6 +32,7 @@ public partial class MainWindow : Window
         {
             timer.Start();
             await RefreshAsync();
+            await CheckAutomaticUpdateAsync();
         };
         Closed += (_, _) => timer.Stop();
     }
@@ -116,14 +118,72 @@ public partial class MainWindow : Window
         UpdateActions();
     }
 
-    private async void LoadPreset(object sender, RoutedEventArgs e) =>
-        await RunAsync("Загружаем Pop Cat из GitHub…", async () =>
+    private async void OpenCatalog(object sender, RoutedEventArgs e)
+    {
+        var window = new CatalogWindow { Owner = this };
+        if (window.ShowDialog() != true || window.SelectedPreset is not { } preset)
+            return;
+
+        await RunAsync("Применяем пресет…", async () =>
         {
-            var preset = await PopCatPreset.LoadAsync();
-            empty.SetDraft(preset.Empty);
-            full.SetDraft(preset.Full);
-            return "Pop Cat готов к применению.";
+            await Task.Run(() => RecycleBinShell.Apply(preset.Empty.Save(), preset.Full.Save()));
+            ClearDrafts();
+            return $"Пресет «{preset.Name}» применён.";
         });
+    }
+
+    private void OpenUpdates(object sender, RoutedEventArgs e)
+    {
+        var window = new UpdatesWindow(!busy && !empty.HasDraft && !full.HasDraft) { Owner = this };
+        if (window.ShowDialog() == true)
+            Close();
+    }
+
+    private async Task CheckAutomaticUpdateAsync()
+    {
+        try
+        {
+            if (!UpdateService.IsInstalled || !UpdateService.Automatic)
+                return;
+
+            var update = await UpdateService.CheckAsync();
+            if (update is null || !CanInstallAutomatically())
+                return;
+
+            Feedback.Text = $"Скачиваем обновление {update.Version}…";
+            string path = await UpdateService.DownloadAsync(update);
+            if (!CanInstallAutomatically())
+            {
+                File.Delete(path);
+                if (IsVisible && !busy)
+                    Feedback.Text = "Обновление доступно в разделе «Обновления».";
+                return;
+            }
+
+            UpdateService.StartInstaller(path);
+            Close();
+        }
+        catch (Exception error)
+        {
+            if (IsVisible && !busy)
+                Feedback.Text = $"Не удалось обновиться автоматически. {error.Message}";
+        }
+    }
+
+    private bool CanInstallAutomatically() => IsVisible && !busy && !empty.HasDraft && !full.HasDraft &&
+        !OwnedWindows.Cast<Window>().Any(window => window.IsVisible) && UpdateService.Automatic;
+
+    private async void OpenPresetStudio(object sender, RoutedEventArgs e)
+    {
+        var window = new PresetWindow { Owner = this };
+        if (window.ShowDialog() != true)
+            return;
+
+        ClearDrafts();
+        UpdateActions();
+        Feedback.Text = "Пресет применён.";
+        await RefreshAsync();
+    }
 
     private async void ApplyIcons(object sender, RoutedEventArgs e)
     {
